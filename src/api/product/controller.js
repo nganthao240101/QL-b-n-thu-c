@@ -1,87 +1,114 @@
-import productServices from "../../../services/productServices";
-import db from "../../../models/index";
+import productServices from "../../services/productServices";
+import db from "../../models";
+import { BASE_URL } from "../../constants";
+const { fn, col } = db.Product.sequelize;
 
-let handleGetAllProducts = async (req, res) => {
-  let products = await productServices.getAllItems();
+const getStamples = async (req, res, next) => {
+  try {
+    const products = await db.Product.findAll({
+      attributes: [
+        "discount",
+        "status",
+        "name",
+        "price",
+        "total",
+        "id",
+        "unit",
+        [fn("concat", BASE_URL, col("photo")), "photo"],
+      ],
+      limit: 20,
+      order: [["createdAt", "DESC"]],
+    });
+
+    if (products) return res.json({ success: true, data: products });
+
+    return res.json({ success: true, data: [] });
+  } catch (error) {
+    console.log(error);
+    next(error);
+  }
+};
+const handleGetAllProducts = async (req, res) => {
+  const products = await productServices.getAllItems();
   return res.status(200).json({
     errMessage: `Ok`,
     products,
   });
 };
-let handleAddProduct = async (req, res, next) => {
-  const {
-    categoryId,
-    subCategoryId,
-    childCategoryId,
-    name,
-    brand,
-    batch,
-    status,
-    unit,
-    expiry,
-    price,
-    qty,
-    discount,
-    total,
-    description,
-  } = req.body;
-  console.log(req.body);
 
-  // let product = await productServices.addProduct(req.body);
-  db.Product.findOne({
-    where: { name: name },
-  })
-    .then((product) => {
-      if (!product) {
-        return db.Product.create({
-          categoryId: categoryId,
-          subCategoryId: subCategoryId,
-          childCategoryId: childCategoryId,
-          status: parseInt(status) ? "active" : "inactive",
-          name: name,
-          batch: batch,
-          brand: brand,
-          unit: unit,
-          expiry: expiry,
-          price: price,
-          qty: qty,
-          discount: discount,
-          total: total,
-          photo: req.file ? req.file.path : "",
-          description: description,
-        });
-      }
-    })
-    .then((product) => {
-      res
-        .status(200)
-        .json({ success: true, msg: "Successfully inserted product" });
-    })
-    .catch(function (err) {
-      next(err);
+const handleAddProduct = async (req, res, next) => {
+  try {
+    const {
+      categoryId,
+      subCategoryId,
+      childCategoryId,
+      name,
+      brand,
+      batch,
+      status,
+      unit,
+      expiry,
+      price,
+      qty,
+      discount,
+      total,
+      description,
+    } = req.body;
+    const productFound = await db.Product.findOne({
+      where: { name: name },
     });
+
+    if (productFound) return res.json({ message: "Product exited" });
+
+    const productCreated = await db.Product.create({
+      categoryId: categoryId,
+      subCategoryId: subCategoryId,
+      childCategoryId: childCategoryId,
+      status: parseInt(status) ? "active" : "inactive",
+      name: name,
+      batch: batch,
+      brand: brand,
+      unit: unit,
+      expiry: expiry,
+      price: price,
+      qty: qty,
+      discount: discount,
+      total: total,
+      photo: req.file ? req.file.filename : "",
+      description: description,
+    });
+
+    if (productCreated)
+      return res.json({
+        success: true,
+        msg: "Successfully inserted product",
+        data: productCreated,
+      });
+  } catch (error) {
+    next(error);
+  }
 };
 
-let handleDeleteProduct = async (req, res) => {
+const handleDeconsteProduct = async (req, res) => {
   console.log(req.query.id);
-  let data = await productServices.deleteProduct(req.query.id);
+  const data = await productServices.deconsteProduct(req.query.id);
   return res.status(200).json({
     errMessage: `Ok`,
     data,
   });
 };
 
-let handleUpdateProduct = async (req, res) => {
+const handleUpdateProduct = async (req, res) => {
   console.log(req.query.id);
   console.log(req.body);
-  let data = await productServices.updateProduct(req.query.id, req.body);
+  const data = await productServices.updateProduct(req.query.id, req.body);
   return res.status(200).json({
     errMessage: `Ok`,
     data,
   });
 };
 
-let handleGetProductListByCategory = async (req, res, next) => {
+const handleGetProductListByCategory = async (req, res, next) => {
   console.log(req.query);
   db.Product.findAll({
     order: [["createdAt", "DESC"]],
@@ -102,8 +129,8 @@ let handleGetProductListByCategory = async (req, res, next) => {
     });
 };
 
-let handleDetailProduct = async (req, res) => {
-  let data = await productServices.detailProduct(req.query.id);
+const handleDetailProduct = async (req, res) => {
+  const data = await productServices.detailProduct(req.query.id);
 
   return res.status(200).json({
     errMessage: `Detail product`,
@@ -111,14 +138,15 @@ let handleDetailProduct = async (req, res) => {
   });
 };
 
-let handleGetProductByCategoryById = async (req, res, next) => {
-  let data = await productServices.getProductByCategoryById(req.query);
+const handleGetProductByCategoryById = async (req, res, next) => {
+  const data = await productServices.getProductByCategoryById(req.query);
 };
 
-let multiplePhotoUpload = async (req, res, next) => {
-  let attachmentEntries = [];
-  console.log(req.files);
+const multiplePhotoUpload = async (req, res, next) => {
+  const attachmentEntries = [];
+
   var productId = req.body.productId;
+
   for (var i = 0; i < req.files.length; i++) {
     attachmentEntries.push({
       productId: productId,
@@ -127,8 +155,6 @@ let multiplePhotoUpload = async (req, res, next) => {
       imgUrl: req.files[i].destination,
     });
   }
-  console.log(attachmentEntries);
-
   db.ProductPhoto.findOne({
     where: { productId: productId },
   })
@@ -150,7 +176,8 @@ let multiplePhotoUpload = async (req, res, next) => {
       next(err);
     });
 };
-let handleGetAllPhotos = (req, res, next) => {
+
+const handleGetAllPhotos = (req, res, next) => {
   db.Product.findAll({
     attributes: ["id", "name", "brand"],
     include: {
@@ -168,7 +195,7 @@ let handleGetAllPhotos = (req, res, next) => {
     });
 };
 
-let addProductOffer = async (req, res, next) => {
+const addProductOffer = async (req, res, next) => {
   const { productId, qty, discount_per, discount_price, total, net_price } =
     req.body;
   console.log(req.body);
@@ -209,7 +236,7 @@ let addProductOffer = async (req, res, next) => {
 module.exports = {
   handleGetAllProducts: handleGetAllProducts,
   handleAddProduct: handleAddProduct,
-  handleDeleteProduct: handleDeleteProduct,
+  handleDeconsteProduct: handleDeconsteProduct,
   handleUpdateProduct: handleUpdateProduct,
   handleDetailProduct: handleDetailProduct,
   handleGetProductListByCategory: handleGetProductListByCategory,
@@ -217,4 +244,5 @@ module.exports = {
   multiplePhotoUpload: multiplePhotoUpload,
   handleGetAllPhotos: handleGetAllPhotos,
   addProductOffer: addProductOffer,
+  getStamples: getStamples,
 };
